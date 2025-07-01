@@ -1,103 +1,289 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import {
+  Box,
+  Button,
+  Container,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Modal,
+  TextField,
+  Pagination,
+  CircularProgress,
+  Alert,
+} from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import AddIcon from "@mui/icons-material/Add";
+import { getUsers } from "./actions/users";
+import { getAddresses } from "./actions/addresses";
+import { DEFAULT_PAGE_SIZE } from "./constants";
+import {
+  users as usersTable,
+  usersAddresses as usersAddressesTable,
+} from "../schema";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  // State for users
+  const [users, setUsers] = useState<(typeof usersTable.$inferSelect)[]>([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // State for selected user and addresses
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [addresses, setAddresses] = useState<
+    (typeof usersAddressesTable.$inferSelect)[]
+  >([]);
+  const [addressesTotal, setAddressesTotal] = useState(0);
+  const [addressesPage, setAddressesPage] = useState(1);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressesError, setAddressesError] = useState<string | null>(null);
+
+  // State for modals and preview
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [addressPreview, setAddressPreview] = useState("");
+
+  // Fetch users
+  useEffect(() => {
+    setUsersLoading(true);
+    setUsersError(null);
+    getUsers(usersPage, DEFAULT_PAGE_SIZE)
+      .then((res) => {
+        if ("error" in res) setUsersError(res.error);
+        else {
+          setUsers(res.data);
+          setUsersTotal(res.total);
+        }
+      })
+      .catch((e) => setUsersError(String(e)))
+      .finally(() => setUsersLoading(false));
+  }, [usersPage]);
+
+  // Fetch addresses for selected user
+  useEffect(() => {
+    if (!selectedUser) return;
+    setAddressesLoading(true);
+    setAddressesError(null);
+    getAddresses(selectedUser, addressesPage, DEFAULT_PAGE_SIZE)
+      .then((res) => {
+        if (!res) return;
+        if ("error" in res) {
+          setAddressesError(res.error ?? "Unknown error");
+        } else {
+          setAddresses(res.data);
+          setAddressesTotal(res.total);
+        }
+      })
+      .catch((e) => setAddressesError(String(e)))
+      .finally(() => setAddressesLoading(false));
+  }, [selectedUser, addressesPage]);
+
+  // Handlers for modals and preview
+  const handleOpenUserModal = () => setUserModalOpen(true);
+  const handleCloseUserModal = () => setUserModalOpen(false);
+  const handleOpenAddressModal = () => setAddressModalOpen(true);
+  const handleCloseAddressModal = () => setAddressModalOpen(false);
+  const handleAddressInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Simple preview logic
+    const { value } = e.target;
+    setAddressPreview(value); // Placeholder
+  };
+
+  return (
+    <Container maxWidth="md" sx={{ py: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Users
+      </Typography>
+      <Button
+        variant="contained"
+        startIcon={<AddIcon />}
+        sx={{ mb: 2 }}
+        onClick={handleOpenUserModal}
+      >
+        Create User
+      </Button>
+      {usersLoading ? (
+        <Box display="flex" justifyContent="center" my={4}>
+          <CircularProgress />
+        </Box>
+      ) : usersError ? (
+        <Alert severity="error">{usersError}</Alert>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>First Name</TableCell>
+                <TableCell>Last Name</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {users.map((user: typeof usersTable.$inferSelect) => (
+                <TableRow
+                  key={user.id}
+                  hover
+                  selected={selectedUser === user.id}
+                  onClick={() => {
+                    setSelectedUser(user.id);
+                    setAddressesPage(1);
+                  }}
+                  sx={{ cursor: "pointer" }}
+                >
+                  <TableCell>{user.firstName}</TableCell>
+                  <TableCell>{user.lastName}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell align="right">
+                    <IconButton>
+                      <MoreVertIcon />
+                    </IconButton>
+                    {/* Context menu for Edit/Delete (mocked) */}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      <Pagination
+        count={Math.ceil(usersTotal / DEFAULT_PAGE_SIZE)}
+        sx={{ mt: 2 }}
+        page={usersPage}
+        onChange={(_, page) => setUsersPage(page)}
+      />
+
+      {selectedUser && (
+        <Box mt={6}>
+          <Typography variant="h5" gutterBottom>
+            Addresses for User #{selectedUser}
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            sx={{ mb: 2 }}
+            onClick={handleOpenAddressModal}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+            Create Address
+          </Button>
+          {addressesLoading ? (
+            <Box display="flex" justifyContent="center" my={4}>
+              <CircularProgress />
+            </Box>
+          ) : addressesError ? (
+            <Alert severity="error">{addressesError}</Alert>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Street</TableCell>
+                    <TableCell>Building</TableCell>
+                    <TableCell>Post Code</TableCell>
+                    <TableCell>City</TableCell>
+                    <TableCell>Country</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {addresses.map(
+                    (
+                      address: typeof usersAddressesTable.$inferSelect,
+                      idx: number
+                    ) => (
+                      <TableRow key={idx}>
+                        <TableCell>{address.addressType}</TableCell>
+                        <TableCell>{address.street}</TableCell>
+                        <TableCell>{address.buildingNumber}</TableCell>
+                        <TableCell>{address.postCode}</TableCell>
+                        <TableCell>{address.city}</TableCell>
+                        <TableCell>{address.countryCode}</TableCell>
+                        <TableCell align="right">
+                          <IconButton>
+                            <MoreVertIcon />
+                          </IconButton>
+                          {/* Context menu for Edit/Delete */}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+          <Pagination
+            count={Math.ceil(addressesTotal / DEFAULT_PAGE_SIZE)}
+            sx={{ mt: 2 }}
+            page={addressesPage}
+            onChange={(_, page) => setAddressesPage(page)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        </Box>
+      )}
+
+      {/* User Modal (mocked) */}
+      <Modal open={userModalOpen} onClose={handleCloseUserModal}>
+        <Box
+          sx={{
+            p: 4,
+            bgcolor: "background.paper",
+            m: "auto",
+            mt: 10,
+            width: 400,
+            borderRadius: 2,
+          }}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <Typography variant="h6">Create/Edit User (Mocked)</Typography>
+          {/* Form fields here */}
+          <Button onClick={handleCloseUserModal} sx={{ mt: 2 }} fullWidth>
+            Close
+          </Button>
+        </Box>
+      </Modal>
+
+      {/* Address Modal (mocked) */}
+      <Modal open={addressModalOpen} onClose={handleCloseAddressModal}>
+        <Box
+          sx={{
+            p: 4,
+            bgcolor: "background.paper",
+            m: "auto",
+            mt: 10,
+            width: 400,
+            borderRadius: 2,
+          }}
         >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <Typography variant="h6">Create/Edit Address</Typography>
+          {/* Form fields here */}
+          <TextField
+            label="Street"
+            name="street"
+            fullWidth
+            sx={{ mt: 2 }}
+            onChange={handleAddressInput}
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          {/* ...other fields... */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
+            <Typography variant="subtitle2">Address Preview:</Typography>
+            <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
+              {addressPreview ||
+                "<street> <building_number>\n<post_code> <city>\n<country_code>"}
+            </Typography>
+          </Box>
+          <Button onClick={handleCloseAddressModal} sx={{ mt: 2 }} fullWidth>
+            Close
+          </Button>
+        </Box>
+      </Modal>
+    </Container>
   );
 }
