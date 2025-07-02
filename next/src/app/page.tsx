@@ -98,42 +98,18 @@ export default function Home() {
     null | typeof usersAddressesTable.$inferSelect
   >(null);
 
-  // Fetch users
-  useEffect(() => {
-    console.log("[DEBUG] Fetching users", { usersPage, DEFAULT_PAGE_SIZE });
-    setUsersLoading(true);
-    setUsersError(null);
-    getUsers(usersPage, DEFAULT_PAGE_SIZE)
-      .then((res) => {
-        console.log("[DEBUG] getUsers result", res);
-        if ("error" in res) setUsersError(res.error);
-        else {
-          setUsers(res.data);
-          setUsersTotal(res.total);
-        }
-      })
-      .catch((e) => setUsersError(String(e)))
-      .finally(() => setUsersLoading(false));
-  }, [usersPage]);
-
   // Fetch addresses for selected user
   useEffect(() => {
     if (!selectedUser) return;
-    console.log("[DEBUG] Fetching addresses", {
-      selectedUser,
-      addressesPage,
-      DEFAULT_PAGE_SIZE,
-    });
+
     setAddressesLoading(true);
     setAddressesError(null);
     getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE)
       .then((res) => {
-        console.log("[DEBUG] getAddresses result", res);
         if (!res) return;
         if ("error" in res) {
           setAddressesError(res.error ?? "Unknown error");
         } else {
-          console.log("[DEBUG] getAddresses result data", res.data, res.total);
           setAddresses(res.data);
           setAddressesTotal(res.total);
         }
@@ -162,28 +138,6 @@ export default function Home() {
   };
   const handleCloseAddressModal = () => setAddressModalOpen(false);
 
-  // Debug log for pagination state
-
-  useEffect(() => {
-    console.log("[DEBUG] Pagination State", {
-      usersPage,
-      addressesPage,
-      usersTotal,
-      addressesTotal,
-      DEFAULT_PAGE_SIZE,
-      usersCount: users.length,
-      addressesCount: addresses.length,
-    });
-  }, [
-    users,
-    addresses,
-    usersTotal,
-    addressesTotal,
-    DEFAULT_PAGE_SIZE,
-    usersPage,
-    addressesPage,
-  ]);
-
   // User menu handlers
   const handleUserMenuOpen = (
     event: React.MouseEvent<HTMLElement>,
@@ -198,11 +152,9 @@ export default function Home() {
     setUserMenuUser(null);
   };
   const handleUserEdit = () => {
-    console.log("Edit user", userMenuUser);
     handleUserMenuClose();
   };
   const handleUserDelete = () => {
-    console.log("Delete user", userMenuUser);
     handleUserMenuClose();
   };
 
@@ -408,7 +360,6 @@ export default function Home() {
         sx={{ mt: 2 }}
         page={usersPage}
         onChange={(_, page) => {
-          console.log("[DEBUG] Users Pagination onChange", page);
           setUsersPage(page);
         }}
       />
@@ -479,7 +430,6 @@ export default function Home() {
             sx={{ mt: 2 }}
             page={addressesPage}
             onChange={(_, page) => {
-              console.log("[DEBUG] Addresses Pagination onChange", page);
               setAddressesPage(page);
             }}
           />

@@ -2,7 +2,7 @@
 
 import { db } from "../../db";
 import { usersAddresses } from "../../schema";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { handleDbAction } from "../../utils/handleDbAction";
 import { DEFAULT_PAGE_SIZE } from "../constants";
 
