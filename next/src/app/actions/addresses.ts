@@ -67,13 +67,7 @@ export async function updateAddress(
     const [address] = await db
       .update(usersAddresses)
       .set(input)
-      .where(
-        and(
-          eq(usersAddresses.userId, userId),
-          eq(usersAddresses.addressType, addressType),
-          eq(usersAddresses.validFrom, validFrom)
-        )
-      )
+      .where(eq(usersAddresses.userId, userId))
       .returning();
     return { address };
   });
@@ -88,15 +82,7 @@ export async function deleteAddress(
   return handleDbAction(async () => {
     if (!userId || !addressType || !validFrom)
       return { error: "Composite key required." };
-    await db
-      .delete(usersAddresses)
-      .where(
-        and(
-          eq(usersAddresses.userId, userId),
-          eq(usersAddresses.addressType, addressType),
-          eq(usersAddresses.validFrom, validFrom)
-        )
-      );
+    await db.delete(usersAddresses).where(eq(usersAddresses.userId, userId));
     return { success: true };
   });
 }

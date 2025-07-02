@@ -571,6 +571,13 @@ export default function Home() {
               onChange={handleAddressFormInputChange}
               fullWidth
               sx={{ mt: 2 }}
+              inputProps={{ maxLength: 6 }}
+              error={addressForm.postCode.length > 6}
+              helperText={
+                addressForm.postCode.length > 6
+                  ? "Post code must be at most 6 characters"
+                  : undefined
+              }
             />
             <TextField
               label="City"
