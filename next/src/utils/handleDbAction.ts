@@ -15,6 +15,7 @@ export async function handleDbAction<T>(
       } else {
         message = error.message;
       }
+      console.error(error);
     }
     return { error: message };
   }

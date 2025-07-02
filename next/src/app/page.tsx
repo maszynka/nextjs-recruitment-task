@@ -18,11 +18,18 @@ import {
   Pagination,
   CircularProgress,
   Alert,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import AddIcon from "@mui/icons-material/Add";
 import { getUsers } from "./actions/users";
-import { getAddresses } from "./actions/addresses";
+import {
+  getAddresses,
+  createAddress,
+  deleteAddress,
+  updateAddress,
+} from "./actions/addresses";
 import { DEFAULT_PAGE_SIZE } from "./constants";
 import {
   users as usersTable,
@@ -38,7 +45,10 @@ export default function Home() {
   const [usersError, setUsersError] = useState<string | null>(null);
 
   // State for selected user and addresses
-  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [selectedUser, setSelectedUser] = useState<
+    typeof usersTable.$inferSelect | null
+  >(null);
+
   const [addresses, setAddresses] = useState<
     (typeof usersAddressesTable.$inferSelect)[]
   >([]);
@@ -50,14 +60,52 @@ export default function Home() {
   // State for modals and preview
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [addressPreview, setAddressPreview] = useState("");
+
+  // User context menu state
+  const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
+    null
+  );
+  const [userMenuUser, setUserMenuUser] = useState<
+    typeof usersTable.$inferSelect | null
+  >(null);
+
+  // Address context menu state
+  const [addressMenuAnchorEl, setAddressMenuAnchorEl] =
+    useState<null | HTMLElement>(null);
+  const [addressMenuAddress, setAddressMenuAddress] = useState<
+    typeof usersAddressesTable.$inferSelect | null
+  >(null);
+
+  // Address form state
+  const [addressForm, setAddressForm] = useState({
+    addressType: "HOME" as "HOME" | "INVOICE" | "POST" | "WORK",
+    validFrom: new Date().toISOString().slice(0, 16), // for datetime-local input
+    postCode: "",
+    city: "",
+    countryCode: "",
+    street: "",
+    buildingNumber: "",
+  });
+  const [addressFormError, setAddressFormError] = useState<string | null>(null);
+  const [addressFormLoading, setAddressFormLoading] = useState(false);
+
+  // Address modal mode: 'create' or 'edit'
+  const [addressModalMode, setAddressModalMode] = useState<"create" | "edit">(
+    "create"
+  );
+  // For edit, store the original PK
+  const [editAddressOriginal, setEditAddressOriginal] = useState<
+    null | typeof usersAddressesTable.$inferSelect
+  >(null);
 
   // Fetch users
   useEffect(() => {
+    console.log("[DEBUG] Fetching users", { usersPage, DEFAULT_PAGE_SIZE });
     setUsersLoading(true);
     setUsersError(null);
     getUsers(usersPage, DEFAULT_PAGE_SIZE)
       .then((res) => {
+        console.log("[DEBUG] getUsers result", res);
         if ("error" in res) setUsersError(res.error);
         else {
           setUsers(res.data);
@@ -71,10 +119,16 @@ export default function Home() {
   // Fetch addresses for selected user
   useEffect(() => {
     if (!selectedUser) return;
+    console.log("[DEBUG] Fetching addresses", {
+      selectedUser,
+      addressesPage,
+      DEFAULT_PAGE_SIZE,
+    });
     setAddressesLoading(true);
     setAddressesError(null);
-    getAddresses(selectedUser, addressesPage, DEFAULT_PAGE_SIZE)
+    getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE)
       .then((res) => {
+        console.log("[DEBUG] getAddresses result", res);
         if (!res) return;
         if ("error" in res) {
           setAddressesError(res.error ?? "Unknown error");
@@ -90,13 +144,232 @@ export default function Home() {
   // Handlers for modals and preview
   const handleOpenUserModal = () => setUserModalOpen(true);
   const handleCloseUserModal = () => setUserModalOpen(false);
-  const handleOpenAddressModal = () => setAddressModalOpen(true);
-  const handleCloseAddressModal = () => setAddressModalOpen(false);
-  const handleAddressInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Simple preview logic
-    const { value } = e.target;
-    setAddressPreview(value); // Placeholder
+  const handleOpenAddressModal = () => {
+    setAddressForm({
+      addressType: "HOME",
+      validFrom: new Date().toISOString().slice(0, 16),
+      postCode: "",
+      city: "",
+      countryCode: "",
+      street: "",
+      buildingNumber: "",
+    });
+    setAddressFormError(null);
+    setAddressModalMode("create");
+    setEditAddressOriginal(null);
+    setAddressModalOpen(true);
   };
+  const handleCloseAddressModal = () => setAddressModalOpen(false);
+
+  // Debug log for pagination state
+
+  useEffect(() => {
+    console.log("[DEBUG] Pagination State", {
+      usersPage,
+      addressesPage,
+      usersTotal,
+      addressesTotal,
+      DEFAULT_PAGE_SIZE,
+      usersCount: users.length,
+      addressesCount: addresses.length,
+    });
+  }, [
+    users,
+    addresses,
+    usersTotal,
+    addressesTotal,
+    DEFAULT_PAGE_SIZE,
+    usersPage,
+    addressesPage,
+  ]);
+
+  // User menu handlers
+  const handleUserMenuOpen = (
+    event: React.MouseEvent<HTMLElement>,
+    user: typeof usersTable.$inferSelect
+  ) => {
+    event.stopPropagation();
+    setUserMenuAnchorEl(event.currentTarget);
+    setUserMenuUser(user);
+  };
+  const handleUserMenuClose = () => {
+    setUserMenuAnchorEl(null);
+    setUserMenuUser(null);
+  };
+  const handleUserEdit = () => {
+    console.log("Edit user", userMenuUser);
+    handleUserMenuClose();
+  };
+  const handleUserDelete = () => {
+    console.log("Delete user", userMenuUser);
+    handleUserMenuClose();
+  };
+
+  // Address menu handlers
+  const handleAddressMenuOpen = (
+    event: React.MouseEvent<HTMLElement>,
+    address: typeof usersAddressesTable.$inferSelect
+  ) => {
+    event.stopPropagation();
+    setAddressMenuAnchorEl(event.currentTarget);
+    setAddressMenuAddress(address);
+  };
+  const handleAddressMenuClose = () => {
+    setAddressMenuAnchorEl(null);
+    setAddressMenuAddress(null);
+  };
+  const handleAddressEdit = () => {
+    if (!addressMenuAddress) return;
+    setAddressForm({
+      addressType: addressMenuAddress.addressType,
+      validFrom: new Date(addressMenuAddress.validFrom)
+        .toISOString()
+        .slice(0, 16),
+      postCode: addressMenuAddress.postCode,
+      city: addressMenuAddress.city,
+      countryCode: addressMenuAddress.countryCode,
+      street: addressMenuAddress.street,
+      buildingNumber: addressMenuAddress.buildingNumber,
+    });
+    setAddressFormError(null);
+    setAddressModalMode("edit");
+    setEditAddressOriginal(addressMenuAddress);
+    setAddressModalOpen(true);
+    handleAddressMenuClose();
+  };
+  const handleAddressDelete = async () => {
+    if (!addressMenuAddress || !selectedUser) return handleAddressMenuClose();
+    const res = await deleteAddress(
+      addressMenuAddress.userId,
+      addressMenuAddress.addressType,
+      new Date(addressMenuAddress.validFrom)
+    );
+    handleAddressMenuClose();
+    if (res && "error" in res) {
+      setAddressesError(res.error ?? "Unknown error");
+    } else {
+      // Refetch addresses
+      getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE).then(
+        (res) => {
+          if (res && !("error" in res)) {
+            setAddresses(res.data);
+            setAddressesTotal(res.total);
+          }
+        }
+      );
+    }
+  };
+
+  // Address form change handler
+  const handleAddressFormInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setAddressForm((prev) => ({ ...prev, [name]: value }));
+  };
+  const handleAddressFormSelectChange = (
+    e: React.ChangeEvent<{ name?: string; value: unknown }>
+  ) => {
+    const name = e.target.name as string;
+    const value = e.target.value as string;
+    setAddressForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Address form submit handler
+  const handleAddressFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    setAddressFormLoading(true);
+    setAddressFormError(null);
+    if (addressModalMode === "create") {
+      const result = await createAddress({
+        userId: selectedUser.id,
+        addressType: addressForm.addressType,
+        validFrom: new Date(addressForm.validFrom),
+        postCode: addressForm.postCode,
+        city: addressForm.city,
+        countryCode: addressForm.countryCode,
+        street: addressForm.street,
+        buildingNumber: addressForm.buildingNumber,
+      });
+      setAddressFormLoading(false);
+      if (result && "error" in result) {
+        setAddressFormError(result.error ?? "Unknown error");
+      } else {
+        setAddressModalOpen(false);
+        setAddressesPage(1); // Go to first page to see new address
+        getAddresses(selectedUser.id, 1, DEFAULT_PAGE_SIZE).then((res) => {
+          if (res && !("error" in res)) {
+            setAddresses(res.data);
+            setAddressesTotal(res.total);
+          }
+        });
+      }
+    } else if (addressModalMode === "edit" && editAddressOriginal) {
+      // Check if PK fields changed
+      const pkChanged =
+        addressForm.addressType !== editAddressOriginal.addressType ||
+        new Date(addressForm.validFrom).toISOString() !==
+          new Date(editAddressOriginal.validFrom).toISOString();
+      let result;
+      if (pkChanged) {
+        // Delete old, insert new
+        const delRes = await deleteAddress(
+          editAddressOriginal.userId,
+          editAddressOriginal.addressType,
+          new Date(editAddressOriginal.validFrom)
+        );
+        if (delRes && "error" in delRes) {
+          setAddressFormLoading(false);
+          setAddressFormError(delRes.error ?? "Unknown error");
+          return;
+        }
+        result = await createAddress({
+          userId: selectedUser.id,
+          addressType: addressForm.addressType,
+          validFrom: new Date(addressForm.validFrom),
+          postCode: addressForm.postCode,
+          city: addressForm.city,
+          countryCode: addressForm.countryCode,
+          street: addressForm.street,
+          buildingNumber: addressForm.buildingNumber,
+        });
+      } else {
+        result = await updateAddress(
+          editAddressOriginal.userId,
+          editAddressOriginal.addressType,
+          new Date(editAddressOriginal.validFrom),
+          {
+            addressType: addressForm.addressType,
+            validFrom: new Date(addressForm.validFrom),
+            postCode: addressForm.postCode,
+            city: addressForm.city,
+            countryCode: addressForm.countryCode,
+            street: addressForm.street,
+            buildingNumber: addressForm.buildingNumber,
+          }
+        );
+      }
+      setAddressFormLoading(false);
+      if (result && "error" in result) {
+        setAddressFormError(result.error ?? "Unknown error");
+      } else {
+        setAddressModalOpen(false);
+        // Refetch addresses
+        getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE).then(
+          (res) => {
+            if (res && !("error" in res)) {
+              setAddresses(res.data);
+              setAddressesTotal(res.total);
+            }
+          }
+        );
+      }
+    }
+  };
+
+  // Address preview string
+  const addressPreviewString = `${addressForm.street} ${addressForm.buildingNumber}\n${addressForm.postCode} ${addressForm.city}\n${addressForm.countryCode}`;
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -133,9 +406,9 @@ export default function Home() {
                 <TableRow
                   key={user.id}
                   hover
-                  selected={selectedUser === user.id}
+                  selected={selectedUser?.id === user.id}
                   onClick={() => {
-                    setSelectedUser(user.id);
+                    setSelectedUser(user);
                     setAddressesPage(1);
                   }}
                   sx={{ cursor: "pointer" }}
@@ -144,10 +417,9 @@ export default function Home() {
                   <TableCell>{user.lastName}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell align="right">
-                    <IconButton>
+                    <IconButton onClick={(e) => handleUserMenuOpen(e, user)}>
                       <MoreVertIcon />
                     </IconButton>
-                    {/* Context menu for Edit/Delete (mocked) */}
                   </TableCell>
                 </TableRow>
               ))}
@@ -159,13 +431,17 @@ export default function Home() {
         count={Math.ceil(usersTotal / DEFAULT_PAGE_SIZE)}
         sx={{ mt: 2 }}
         page={usersPage}
-        onChange={(_, page) => setUsersPage(page)}
+        onChange={(_, page) => {
+          console.log("[DEBUG] Users Pagination onChange", page);
+          setUsersPage(page);
+        }}
       />
 
-      {selectedUser && (
+      {selectedUser?.id && (
         <Box mt={6}>
           <Typography variant="h5" gutterBottom>
-            Addresses for User #{selectedUser}
+            Addressess of #{selectedUser.id}: {selectedUser?.firstName}{" "}
+            {selectedUser?.lastName}
           </Typography>
           <Button
             variant="outlined"
@@ -209,10 +485,11 @@ export default function Home() {
                         <TableCell>{address.city}</TableCell>
                         <TableCell>{address.countryCode}</TableCell>
                         <TableCell align="right">
-                          <IconButton>
+                          <IconButton
+                            onClick={(e) => handleAddressMenuOpen(e, address)}
+                          >
                             <MoreVertIcon />
                           </IconButton>
-                          {/* Context menu for Edit/Delete */}
                         </TableCell>
                       </TableRow>
                     )
@@ -225,7 +502,10 @@ export default function Home() {
             count={Math.ceil(addressesTotal / DEFAULT_PAGE_SIZE)}
             sx={{ mt: 2 }}
             page={addressesPage}
-            onChange={(_, page) => setAddressesPage(page)}
+            onChange={(_, page) => {
+              console.log("[DEBUG] Addresses Pagination onChange", page);
+              setAddressesPage(page);
+            }}
           />
         </Box>
       )}
@@ -250,7 +530,7 @@ export default function Home() {
         </Box>
       </Modal>
 
-      {/* Address Modal (mocked) */}
+      {/* Address Modal (create/edit) */}
       <Modal open={addressModalOpen} onClose={handleCloseAddressModal}>
         <Box
           sx={{
@@ -262,28 +542,125 @@ export default function Home() {
             borderRadius: 2,
           }}
         >
-          <Typography variant="h6">Create/Edit Address</Typography>
-          {/* Form fields here */}
-          <TextField
-            label="Street"
-            name="street"
-            fullWidth
-            sx={{ mt: 2 }}
-            onChange={handleAddressInput}
-          />
-          {/* ...other fields... */}
-          <Box sx={{ mt: 2, p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
-            <Typography variant="subtitle2">Address Preview:</Typography>
-            <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
-              {addressPreview ||
-                "<street> <building_number>\n<post_code> <city>\n<country_code>"}
-            </Typography>
-          </Box>
-          <Button onClick={handleCloseAddressModal} sx={{ mt: 2 }} fullWidth>
-            Close
-          </Button>
+          <Typography variant="h6">
+            {addressModalMode === "edit" ? "Edit Address" : "Create Address"}
+          </Typography>
+          <form onSubmit={handleAddressFormSubmit}>
+            <TextField
+              select
+              label="Type"
+              name="addressType"
+              value={addressForm.addressType}
+              onChange={handleAddressFormSelectChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            >
+              <MenuItem value="HOME">HOME</MenuItem>
+              <MenuItem value="INVOICE">INVOICE</MenuItem>
+              <MenuItem value="POST">POST</MenuItem>
+              <MenuItem value="WORK">WORK</MenuItem>
+            </TextField>
+            <TextField
+              label="Valid From"
+              name="validFrom"
+              type="datetime-local"
+              value={addressForm.validFrom}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Street"
+              name="street"
+              value={addressForm.street}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="Building Number"
+              name="buildingNumber"
+              value={addressForm.buildingNumber}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="Post Code"
+              name="postCode"
+              value={addressForm.postCode}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="City"
+              name="city"
+              value={addressForm.city}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <TextField
+              label="Country Code"
+              name="countryCode"
+              value={addressForm.countryCode}
+              onChange={handleAddressFormInputChange}
+              fullWidth
+              sx={{ mt: 2 }}
+            />
+            <Box sx={{ mt: 2, p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
+              <Typography variant="subtitle2">Address Preview:</Typography>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
+                {addressPreviewString}
+              </Typography>
+            </Box>
+            {addressFormError && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {addressFormError}
+              </Alert>
+            )}
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              sx={{ mt: 2 }}
+              fullWidth
+              disabled={addressFormLoading}
+            >
+              {addressFormLoading
+                ? "Saving..."
+                : addressModalMode === "edit"
+                  ? "Update"
+                  : "Save"}
+            </Button>
+            <Button onClick={handleCloseAddressModal} sx={{ mt: 1 }} fullWidth>
+              Cancel
+            </Button>
+          </form>
         </Box>
       </Modal>
+
+      <Menu
+        anchorEl={userMenuAnchorEl}
+        open={Boolean(userMenuAnchorEl)}
+        onClose={handleUserMenuClose}
+      >
+        <MenuItem onClick={handleUserEdit}>Edit</MenuItem>
+        <MenuItem onClick={handleUserDelete}>Delete</MenuItem>
+      </Menu>
+
+      {selectedUser?.id && (
+        <Menu
+          anchorEl={addressMenuAnchorEl}
+          open={Boolean(addressMenuAnchorEl)}
+          onClose={handleAddressMenuClose}
+        >
+          <MenuItem onClick={handleAddressEdit}>Edit</MenuItem>
+          <MenuItem onClick={handleAddressDelete}>Delete</MenuItem>
+        </Menu>
+      )}
     </Container>
   );
 }
