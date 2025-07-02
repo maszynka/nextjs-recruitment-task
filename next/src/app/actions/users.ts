@@ -31,11 +31,12 @@ export async function getUsers(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
   return handleDbAction(async () => {
     const offset = (page - 1) * pageSize;
     const data = await db.select().from(users).limit(pageSize).offset(offset);
-    const totalResult = await db.execute<{ count: string }>(
+    const totalResult = await db.execute<{ rows: { count: string }[] }>(
       `SELECT COUNT(*) as count FROM users`
     );
+    const firstRow = totalResult.rows[0];
     const total = Number(
-      (totalResult as unknown as Array<{ count: string }>)[0]?.count || 0
+      (firstRow as unknown as { count: string })?.count || 0
     );
     return { data, total };
   });

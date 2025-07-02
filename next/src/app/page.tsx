@@ -133,6 +133,7 @@ export default function Home() {
         if ("error" in res) {
           setAddressesError(res.error ?? "Unknown error");
         } else {
+          console.log("[DEBUG] getAddresses result data", res.data, res.total);
           setAddresses(res.data);
           setAddressesTotal(res.total);
         }

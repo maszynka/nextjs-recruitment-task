@@ -43,11 +43,12 @@ export async function getAddresses(
       .where(eq(usersAddresses.userId, userId))
       .limit(pageSize)
       .offset(offset);
-    const totalResult = await db.execute<{ count: string }>(
+    const totalResult = await db.execute<{ rows: { count: string }[] }>(
       `SELECT COUNT(*) as count FROM users_addresses WHERE user_id = ${Number(userId)}`
     );
+    const firstRow = totalResult.rows[0];
     const total = Number(
-      (totalResult as unknown as Array<{ count: string }>)[0]?.count || 0
+      (firstRow as unknown as { count: string })?.count || 0
     );
     return { data, total };
   });
