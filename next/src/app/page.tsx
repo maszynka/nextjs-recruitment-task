@@ -306,43 +306,17 @@ export default function Home() {
           }
         });
       }
-    } else if (addressModalMode === "edit" && editAddressOriginal) {
-      // Check if PK fields changed
-      const pkChanged =
-        addressForm.addressType !== editAddressOriginal.addressType ||
-        new Date(addressForm.validFrom).toISOString() !==
-          new Date(editAddressOriginal.validFrom).toISOString();
-      let result;
-      if (pkChanged) {
-        // Delete old, insert new
-        const delRes = await deleteAddress(
-          editAddressOriginal.userId,
-          editAddressOriginal.addressType,
-          new Date(editAddressOriginal.validFrom)
-        );
-        if (delRes && "error" in delRes) {
-          setAddressFormLoading(false);
-          setAddressFormError(delRes.error ?? "Unknown error");
-          return;
-        }
-        result = await createAddress({
-          userId: selectedUser.id,
-          addressType: addressForm.addressType,
-          validFrom: new Date(addressForm.validFrom),
-          postCode: addressForm.postCode,
-          city: addressForm.city,
-          countryCode: addressForm.countryCode,
-          street: addressForm.street,
-          buildingNumber: addressForm.buildingNumber,
-        });
-      } else {
-        result = await updateAddress(
+    } else if (
+      addressModalMode === "edit" &&
+      editAddressOriginal &&
+      selectedUser
+    ) {
+      try {
+        const result = await updateAddress(
           editAddressOriginal.userId,
           editAddressOriginal.addressType,
           new Date(editAddressOriginal.validFrom),
           {
-            addressType: addressForm.addressType,
-            validFrom: new Date(addressForm.validFrom),
             postCode: addressForm.postCode,
             city: addressForm.city,
             countryCode: addressForm.countryCode,
@@ -350,21 +324,22 @@ export default function Home() {
             buildingNumber: addressForm.buildingNumber,
           }
         );
-      }
-      setAddressFormLoading(false);
-      if (result && "error" in result) {
-        setAddressFormError(result.error ?? "Unknown error");
-      } else {
-        setAddressModalOpen(false);
-        // Refetch addresses
-        getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE).then(
-          (res) => {
-            if (res && !("error" in res)) {
-              setAddresses(res.data);
-              setAddressesTotal(res.total);
+        if (result && "error" in result) {
+          setAddressFormError(result.error ?? "Unknown error");
+        } else {
+          setAddressModalOpen(false);
+          // Refetch addresses
+          getAddresses(selectedUser.id, addressesPage, DEFAULT_PAGE_SIZE).then(
+            (res) => {
+              if (res && !("error" in res)) {
+                setAddresses(res.data);
+                setAddressesTotal(res.total);
+              }
             }
-          }
-        );
+          );
+        }
+      } finally {
+        setAddressFormLoading(false);
       }
     }
   };
@@ -555,6 +530,7 @@ export default function Home() {
               onChange={handleAddressFormSelectChange}
               fullWidth
               sx={{ mt: 2 }}
+              disabled={addressModalMode === "edit"}
             >
               <MenuItem value="HOME">HOME</MenuItem>
               <MenuItem value="INVOICE">INVOICE</MenuItem>
@@ -570,6 +546,7 @@ export default function Home() {
               fullWidth
               sx={{ mt: 2 }}
               InputLabelProps={{ shrink: true }}
+              disabled={addressModalMode === "edit"}
             />
             <TextField
               label="Street"
